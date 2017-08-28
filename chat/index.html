@@ -3,33 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <title></title>
+    <style>
+        div{
+            border-style: solid;
+            border-width: 1px;
+        }
+    </style>
 </head>
 <body>
     <select id="room">
+        <option value="0">Chat Room</option>
         <option value="1">Room1</option>
         <option value="2">Room2</option>
     </select>
     <input type="text" placeholder="message" id="textbox">
     <button id="button">Send</button>
+    <p></p>
     <div id="box"></div>
+    <p></p>
+    <p></p>
+    <div id="box2"></div>
 
     <script>
         var socket = new WebSocket("ws://127.0.0.1:3000/ws");
+        var sel = document.getElementById("room");
         var button = document.getElementById("button");
-        var room = document.getElementById("room").value;
-        //socket.send("room:" + room);
+        sel.addEventListener("change",function(){
+            var room = document.getElementById("room").value;
+            var sendmsg = JSON.stringify({
+                "Room" : room,
+                "Msg" : "進入了Room" + room
+            })
+            socket.send(sendmsg);
+        });
+
         button.addEventListener("click", function(event){
+            var room = document.getElementById("room").value;
             var text = document.getElementById("textbox").value;        
-            socket.send(text);
+            var sendmsg = JSON.stringify({
+                "Room" : room,
+                "Msg" : text
+            })
+            socket.send(sendmsg);
         });
         socket.onopen = function(event){
             console.log("Socket opened successfully");
-            socket.send("room:" + room);
         }
         socket.onmessage = function(event){
+            var room = document.getElementById("room").value;
             var box = document.createElement("div");
             box.innerHTML = event.data;
-            document.getElementById("box").appendChild(box);
+            if (room == 1) {
+                document.getElementById("box").appendChild(box);    
+            } else if (room ==2) {
+                document.getElementById("box2").appendChild(box);    
+            }    
         }
 
         socket.onclose = function(evt) {

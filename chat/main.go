@@ -10,15 +10,19 @@ import (
 var upgrader = websocket.Upgrader{}
 
 type Hub struct {
-	clients   map[*Client]bool
-	addClient chan *Client
-	broadcast chan []byte
+	clients       map[*Client]bool
+	addClient     chan *Client
+	removeClient  chan *Client
+	broadcast     chan []byte
+	broadcastJson chan Smsg
 }
 
 var hub = Hub{
-	clients:   make(map[*Client]bool),
-	addClient: make(chan *Client),
-	broadcast: make(chan []byte),
+	clients:       make(map[*Client]bool),
+	addClient:     make(chan *Client),
+	removeClient:  make(chan *Client),
+	broadcast:     make(chan []byte),
+	broadcastJson: make(chan Smsg),
 }
 
 func (hub *Hub) start() {
@@ -34,13 +38,27 @@ func (hub *Hub) start() {
 			for key := range hub.clients {
 				key.ws.WriteMessage(1, msg)
 			}
+		case conn := <-hub.removeClient:
+			delete(hub.clients, conn)
+
+		case val := <-hub.broadcastJson:
+			//fmt.Println(val.msg)
+			for key := range hub.clients {
+				if key.room == val.Room {
+					key.ws.WriteMessage(1, []byte(val.Msg))
+				}
+			}
 		}
 	}
 }
 
 type Client struct {
-	ws *websocket.Conn
-	//room string
+	ws   *websocket.Conn
+	room string
+}
+type Smsg struct {
+	Room string
+	Msg  string
 }
 
 func main() {
@@ -62,13 +80,22 @@ func chat(rw http.ResponseWriter, req *http.Request) {
 
 	go func(conn *websocket.Conn) {
 		for {
-			_, msg, err := conn.ReadMessage()
+			var v Smsg
+			err := conn.ReadJSON(&v)
 			if err != nil {
 				fmt.Println(err)
 				break
 			}
-			hub.broadcast <- msg
+			client.room = v.Room
+			hub.addClient <- client
+			hub.broadcastJson <- v
 		}
+
+		defer func() {
+			hub.removeClient <- client
+			conn.Close()
+		}()
+
 	}(conn)
 
 }
