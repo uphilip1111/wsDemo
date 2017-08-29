@@ -1,9 +1,12 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
+	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/websocket"
 )
 
@@ -26,7 +29,20 @@ var hub = Hub{
 }
 
 func (hub *Hub) start() {
-	fmt.Println("123")
+	fmt.Println("Hub start!")
+
+	db, sqlerr := sql.Open("mysql", "root:admin@/project")
+	if sqlerr != nil {
+		fmt.Println(sqlerr)
+	}
+	defer db.Close()
+
+	strInsert, sqlerr := db.Prepare("insert into chat_context values(?,?,?)")
+	if sqlerr != nil {
+		fmt.Println(sqlerr)
+	}
+	defer strInsert.Close()
+
 	for {
 		select {
 
@@ -42,7 +58,11 @@ func (hub *Hub) start() {
 			delete(hub.clients, conn)
 
 		case val := <-hub.broadcastJson:
-			//fmt.Println(val.msg)
+			_, sqlerr = strInsert.Exec(val.Room, val.Msg, time.Now())
+			if sqlerr != nil {
+				fmt.Println(sqlerr)
+			}
+
 			for key := range hub.clients {
 				if key.room == val.Room {
 					key.ws.WriteMessage(1, []byte(val.Msg))
