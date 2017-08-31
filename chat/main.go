@@ -10,6 +10,15 @@ import (
 
 var upgrader = websocket.Upgrader{}
 
+type Client struct {
+	ws *websocket.Conn
+}
+type ClientSendMsg struct {
+	Room   string
+	Msg    string
+	Status int
+}
+
 type ClientToRoom struct {
 	room   string
 	client *Client
@@ -82,16 +91,6 @@ func (hub *Hub) start() {
 	}
 }
 
-type Client struct {
-	ws   *websocket.Conn
-	room string
-}
-type ClientSendMsg struct {
-	Room   string
-	Msg    string
-	Status int
-}
-
 func main() {
 	http.HandleFunc("/", home)
 	go hub.start()
@@ -118,7 +117,7 @@ func chat(rw http.ResponseWriter, req *http.Request) {
 				fmt.Println(err)
 				break
 			}
-			client.room = msgFromClient.Room
+
 			if msgFromClient.Status == 1 {
 				clientToRoom.room = msgFromClient.Room
 				clientToRoom.client = client

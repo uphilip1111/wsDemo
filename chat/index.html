@@ -68,12 +68,9 @@
         }
 
         socket.onerror = function(evt) {
-            var sendmsg = JSON.stringify({
-                "Room" : "Lobby",
-                "Msg" : "XX玩家發生錯誤！",
-                "Status" : 2
-            })
-            socket.send(sendmsg);
+            var box = document.createElement("div");
+            box.innerHTML = evt.data;
+            document.getElementById("box").appendChild(box);
             ws.close()
         }
 
