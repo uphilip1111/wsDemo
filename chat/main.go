@@ -1,10 +1,8 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
-	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/websocket"
@@ -12,26 +10,30 @@ import (
 
 var upgrader = websocket.Upgrader{}
 
+type ClientToRoom struct {
+	room   string
+	client *Client
+}
 type Hub struct {
-	clients       map[*Client]bool
-	addClient     chan *Client
-	removeClient  chan *Client
-	broadcast     chan []byte
-	broadcastJson chan Smsg
+	clientList      map[string][]*Client
+	addClient       chan *Client
+	addClientToRoom chan ClientToRoom
+	removeClient    chan *Client
+	broadcastJson   chan ClientSendMsg
 }
 
 var hub = Hub{
-	clients:       make(map[*Client]bool),
-	addClient:     make(chan *Client),
-	removeClient:  make(chan *Client),
-	broadcast:     make(chan []byte),
-	broadcastJson: make(chan Smsg),
+	clientList:      make(map[string][]*Client),
+	addClient:       make(chan *Client),
+	addClientToRoom: make(chan ClientToRoom),
+	removeClient:    make(chan *Client),
+	broadcastJson:   make(chan ClientSendMsg),
 }
 
 func (hub *Hub) start() {
 	fmt.Println("Hub start!")
-
-	db, sqlerr := sql.Open("mysql", "root:admin@/project")
+	//SQL CONNECTION
+	/*db, sqlerr := sql.Open("mysql", "root:admin@/project")
 	if sqlerr != nil {
 		fmt.Println(sqlerr)
 	}
@@ -41,32 +43,40 @@ func (hub *Hub) start() {
 	if sqlerr != nil {
 		fmt.Println(sqlerr)
 	}
-	defer strInsert.Close()
+	defer strInsert.Close()*/
 
 	for {
 		select {
 
-		case conn := <-hub.addClient:
-			hub.clients[conn] = true
-			fmt.Println(hub.clients)
+		case roomConn := <-hub.addClientToRoom:
+			hub.clientList[roomConn.room] = append(hub.clientList[roomConn.room], roomConn.client)
+			fmt.Println("client List:", hub.clientList)
 
-		case msg := <-hub.broadcast:
-			for key := range hub.clients {
-				key.ws.WriteMessage(1, msg)
-			}
+		case conn := <-hub.addClient:
+			hub.clientList["Lobby"] = append(hub.clientList["Lobby"], conn)
+
 		case conn := <-hub.removeClient:
-			delete(hub.clients, conn)
+			for room, clientlist := range hub.clientList {
+				for clientlistidx, client := range clientlist {
+					if client == conn {
+						hub.clientList[room] = append(hub.clientList[room][:clientlistidx], hub.clientList[room][clientlistidx+1:]...)
+					}
+				}
+			}
+
+			for _, client := range hub.clientList["Lobby"] {
+				client.ws.WriteMessage(1, []byte("玩家離開房間"))
+			}
 
 		case val := <-hub.broadcastJson:
-			_, sqlerr = strInsert.Exec(val.Room, val.Msg, time.Now())
+			//SQL EXECUTE
+			/*_, sqlerr = strInsert.Exec(val.Room, val.Msg, time.Now())
 			if sqlerr != nil {
 				fmt.Println(sqlerr)
-			}
+			}*/
 
-			for key := range hub.clients {
-				if key.room == val.Room {
-					key.ws.WriteMessage(1, []byte(val.Msg))
-				}
+			for _, v := range hub.clientList[val.Room] {
+				v.ws.WriteMessage(1, []byte(val.Msg))
 			}
 		}
 	}
@@ -76,9 +86,10 @@ type Client struct {
 	ws   *websocket.Conn
 	room string
 }
-type Smsg struct {
-	Room string
-	Msg  string
+type ClientSendMsg struct {
+	Room   string
+	Msg    string
+	Status int
 }
 
 func main() {
@@ -99,16 +110,21 @@ func chat(rw http.ResponseWriter, req *http.Request) {
 	hub.addClient <- client
 
 	go func(conn *websocket.Conn) {
+		var clientToRoom ClientToRoom
 		for {
-			var v Smsg
-			err := conn.ReadJSON(&v)
+			var msgFromClient ClientSendMsg
+			err := conn.ReadJSON(&msgFromClient)
 			if err != nil {
 				fmt.Println(err)
 				break
 			}
-			client.room = v.Room
-			hub.addClient <- client
-			hub.broadcastJson <- v
+			client.room = msgFromClient.Room
+			if msgFromClient.Status == 1 {
+				clientToRoom.room = msgFromClient.Room
+				clientToRoom.client = client
+				hub.addClientToRoom <- clientToRoom
+			}
+			hub.broadcastJson <- msgFromClient
 		}
 
 		defer func() {

@@ -25,6 +25,7 @@
     <div id="box2"></div>
 
     <script>
+        //status: 1 Enter chat, 2 send message
         var socket = new WebSocket("ws://127.0.0.1:3000/ws");
         var sel = document.getElementById("room");
         var button = document.getElementById("button");
@@ -32,7 +33,8 @@
             var room = document.getElementById("room").value;
             var sendmsg = JSON.stringify({
                 "Room" : room,
-                "Msg" : "進入了Room" + room
+                "Msg" : "進入了Room" + room,
+                "Status" : 1
             })
             socket.send(sendmsg);
         });
@@ -42,7 +44,8 @@
             var text = document.getElementById("textbox").value;        
             var sendmsg = JSON.stringify({
                 "Room" : room,
-                "Msg" : text
+                "Msg" : text,
+                "Status" : 2
             })
             socket.send(sendmsg);
         });
@@ -62,6 +65,16 @@
 
         socket.onclose = function(evt) {
             ws = null;
+        }
+
+        socket.onerror = function(evt) {
+            var sendmsg = JSON.stringify({
+                "Room" : "Lobby",
+                "Msg" : "XX玩家發生錯誤！",
+                "Status" : 2
+            })
+            socket.send(sendmsg);
+            ws.close()
         }
 
         window.onbeforeunload = function(event){
