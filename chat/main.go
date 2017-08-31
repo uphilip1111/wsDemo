@@ -15,7 +15,6 @@ type ClientToRoom struct {
 	client *Client
 }
 type Hub struct {
-	//clients         map[*Client]bool
 	clientList      map[string][]*Client
 	addClient       chan *Client
 	addClientToRoom chan ClientToRoom
@@ -24,7 +23,6 @@ type Hub struct {
 }
 
 var hub = Hub{
-	//clients:         make(map[*Client]bool),
 	clientList:      make(map[string][]*Client),
 	addClient:       make(chan *Client),
 	addClientToRoom: make(chan ClientToRoom),
@@ -55,9 +53,7 @@ func (hub *Hub) start() {
 			fmt.Println("client List:", hub.clientList)
 
 		case conn := <-hub.addClient:
-			//hub.clients[conn] = true
 			hub.clientList["Lobby"] = append(hub.clientList["Lobby"], conn)
-			//fmt.Println(hub.clients)
 
 		case conn := <-hub.removeClient:
 			for room, clientlist := range hub.clientList {
@@ -82,13 +78,6 @@ func (hub *Hub) start() {
 			for _, v := range hub.clientList[val.Room] {
 				v.ws.WriteMessage(1, []byte(val.Msg))
 			}
-
-			//ORIGINAL Broadcast
-			/*for key := range hub.clients {
-				if key.room == val.Room {
-					key.ws.WriteMessage(1, []byte(val.Msg))
-				}
-			}*/
 		}
 	}
 }
