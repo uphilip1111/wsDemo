@@ -16,7 +16,6 @@ type Hub struct {
 	clients       map[*Client]bool
 	addClient     chan *Client
 	removeClient  chan *Client
-	broadcast     chan []byte
 	broadcastJson chan Smsg
 }
 
@@ -24,7 +23,6 @@ var hub = Hub{
 	clients:       make(map[*Client]bool),
 	addClient:     make(chan *Client),
 	removeClient:  make(chan *Client),
-	broadcast:     make(chan []byte),
 	broadcastJson: make(chan Smsg),
 }
 
@@ -50,10 +48,6 @@ func (hub *Hub) start() {
 			hub.clients[conn] = true
 			fmt.Println(hub.clients)
 
-		case msg := <-hub.broadcast:
-			for key := range hub.clients {
-				key.ws.WriteMessage(1, msg)
-			}
 		case conn := <-hub.removeClient:
 			delete(hub.clients, conn)
 
